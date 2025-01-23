@@ -9,8 +9,8 @@
 #define MAX_PAYLOAD 1012
 
 // Retransmission time
-#define TV_DIFF(end, start)                                                    \
-    (end.tv_sec * 1000000) - (start.tv_sec * 1000000) + end.tv_usec -          \
+#define TV_DIFF(end, start)                                           \
+    (end.tv_sec * 1000000) - (start.tv_sec * 1000000) + end.tv_usec - \
         start.tv_usec
 #define RTO 1000000
 #define MIN(a, b) (a > b ? b : a)
@@ -37,7 +37,8 @@
 #define DUPS 3
 
 // Structs
-typedef struct {
+typedef struct
+{
     uint16_t seq;
     uint16_t ack;
     uint16_t length;
@@ -48,16 +49,20 @@ typedef struct {
 } packet;
 
 // Bit counter
-static inline int bit_count(packet* pkt) {
-    uint8_t* bytes = (uint8_t*) pkt;
+static inline int bit_count(packet *pkt)
+{
+    uint8_t *bytes = (uint8_t *)pkt;
     int len = sizeof(packet) + ntohs(pkt->length);
     int count = 0;
 
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++)
+    {
         uint8_t val = bytes[i];
 
-        while (val > 0) {
-            if (val & 1) {
+        while (val > 0)
+        {
+            if (val & 1)
+            {
                 count += 1;
             }
             val >>= 1;
@@ -68,44 +73,27 @@ static inline int bit_count(packet* pkt) {
 }
 
 // Helpers
-static inline void print(char* txt) {
+static inline void print(char *txt)
+{
     fprintf(stderr, "%s\n", txt);
 }
 
-static inline void print_diag(packet* pkt, int diag) {
-    switch (diag) {
-    case RECV:
-        fprintf(stderr, "RECV");
-        break;
-    case SEND:
-        fprintf(stderr, "SEND");
-        break;
-    case RTOS:
-        fprintf(stderr, "RTOS");
-        break;
-    case DUPS:
-        fprintf(stderr, "DUPS");
-        break;
-    }
+static inline void print_diag(packet *pkt)
+{
+    fprintf(stderr, "[INFO] ");
 
-    bool syn = pkt->flags & SYN;
-    bool ack = pkt->flags & ACK;
-    bool parity = pkt->flags & PARITY;
-    fprintf(stderr, " %hu ACK %hu LEN %hu WIN %hu FLAGS ", ntohs(pkt->seq),
-            ntohs(pkt->ack), ntohs(pkt->length), ntohs(pkt->win));
-    if (!syn && !ack && !parity) {
-        fprintf(stderr, "NONE");
-    } else {
-        if (syn) {
-            fprintf(stderr, "SYN ");
-        }
-        if (ack) {
-            fprintf(stderr, "ACK ");
-        }
-        if (parity) {
-            fprintf(stderr, "PARITY ");
-        }
+    fprintf(stderr, "SEQ: %hu ACK: %hu LEN: %hu WIN: %hu FLAGS: ", pkt->seq, pkt->ack, pkt->length, pkt->win);
+    bool syn = pkt->flags & 1;
+    bool ack = (pkt->flags >> 1) & 1;
+    bool parity = (pkt->flags >> 2) & 1;
+    if (syn) {
+        fprintf(stderr, "S");
+    }
+    if (ack) {
+        fprintf(stderr, "A");
+    }
+    if (parity) {
+        fprintf(stderr, "P");
     }
     fprintf(stderr, "\n");
 }
-

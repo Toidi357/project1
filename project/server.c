@@ -7,13 +7,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 
 
-
-// filles in the char* buffer with the packet and returns packet length
+// fills in the char* buffer with the packet and returns packet length
 int create_syn_ack_packet(char* buffer, int seq){
     packet pkt;
-    pkt.seq = htons(456); // random
+    pkt.seq = htons(rand() % 1001); // random
     pkt.ack = htons(seq + 1);    // set to previous SEQ + 1
     pkt.length = htons(0); // length of payload
     pkt.win = htons(1012); // constant set
@@ -37,6 +37,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: server <port>\n");
         exit(1);
     }
+
+    // seed our randomness generator
+    srand(time(NULL));
 
     /* Create sockets */
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -62,26 +65,30 @@ int main(int argc, char **argv)
 
     // Wait for client connection
     fprintf(stderr, "%s\n", "[DEBUG]: Listening for SYN packets");
-    int bytes_recvd = recvfrom(sockfd, &buffer, sizeof(buffer), MSG_PEEK,
+    int bytes_recvd = recvfrom(sockfd, buffer, sizeof(buffer), 0,
                                (struct sockaddr *)&client_addr, &s);
-
     // upon getting a packet, check its SEQ number and SYN flag, note everything is already in big endian order
     packet syn_pkt;
     if (parity_check(buffer, bytes_recvd) == false)
         return 0; // drop packet
     parse_packet(&syn_pkt, buffer, bytes_recvd);
-    fprintf(stderr, "%hu\n", syn_pkt.seq);
-    print_diag(&syn_pkt, RECV);
+    print_diag(&syn_pkt);
 
+    // send out SYN ACK
+    int syn_ack_size = create_syn_ack_packet(buffer, syn_pkt.seq);
+    int did_send = sendto(sockfd, buffer, syn_ack_size, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
+    fprintf(stderr, "%s %d %s\n", "[DEBUG] Sent SYN ACK packet of", did_send, "bytes");
 
-    // // send out SYN ACK
-    // int syn_ack_size = create_syn_ack_packet(buffer, syn_pkt.seq);
-    // int did_send = sendto(sockfd, buffer, syn_ack_size, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
-    // fprintf(stderr, "%s %d %s\n", "[DEBUG] Sent SYN ACK packet of", did_send, "bytes");
+    // wait for ACK
+    bytes_recvd = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr, &s);
+    packet ack_pkt;
+    if (parity_check(buffer, bytes_recvd) == false)
+        return 0; // drop packet
+    parse_packet(&ack_pkt, buffer, bytes_recvd);
+    print_diag(&ack_pkt);
 
 
     return 0;
-
     init_io();
     listen_loop(sockfd, &client_addr, SERVER, input_io, output_io);
 

@@ -27,12 +27,12 @@ void parse_packet(packet* pkt, char *buffer, size_t bytes_recvd)
     pkt->ack = (uint16_t)((buffer[2] << 8) | (buffer[3] & 0xFF));
     pkt->length = (uint16_t)((buffer[4] << 8) | (buffer[5] & 0xFF));
     pkt->win = (uint16_t)((buffer[6] << 8) | (buffer[7] & 0xFF));
-    pkt->flags = (uint16_t)((buffer[8] << 8) | (buffer[9] & 0xFF));
+    pkt->flags = (uint16_t)((buffer[9] << 8) | (buffer[8] & 0xFF)); // flags is not big endian
     pkt->unused = (uint16_t)((buffer[10] << 8) | (buffer[11] & 0xFF));
 
     // 12 is size of the metadata
     for (size_t i = 12; i < bytes_recvd; i++) {
-        pkt->payload[i - 12] = ntohs(buffer[i]);
+        pkt->payload[i - 12] = buffer[i];
     }
 }
 
