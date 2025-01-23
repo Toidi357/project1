@@ -7,9 +7,33 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <errno.h>
 
-int main(int argc, char** argv) {
-    if (argc < 3) {
+// fills in the char* buffer with the packet and returns packet length
+int create_syn_packet(char* buffer)
+{
+    packet pkt;
+    pkt.seq = htons(700);
+    pkt.ack = htons(0);    // not used
+    pkt.length = htons(0); // length of payload
+    pkt.win = htons(1012); // constant set
+    pkt.flags = SYN;
+    pkt.unused = htons(0);
+    memcpy(buffer, &pkt, sizeof(pkt));
+    // check parity
+    if (parity_check(buffer, sizeof(pkt)) == false)
+    {
+        pkt.flags |= PARITY;
+        memcpy(buffer, &pkt, sizeof(pkt));
+    }
+
+    return sizeof(pkt);
+}
+
+int main(int argc, char **argv)
+{
+    if (argc < 3)
+    {
         fprintf(stderr, "Usage: client <hostname> <port> \n");
         exit(1);
     }
@@ -22,12 +46,29 @@ int main(int argc, char** argv) {
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET; // use IPv4
     // Only supports localhost as a hostname, but that's all we'll test on
-    char* addr = strcmp(argv[1], "localhost") == 0 ? "127.0.0.1" : argv[1];
+    char *addr = strcmp(argv[1], "localhost") == 0 ? "127.0.0.1" : argv[1];
     server_addr.sin_addr.s_addr = inet_addr(addr);
     // Set sending port
     int PORT = atoi(argv[2]);
     server_addr.sin_port = htons(PORT); // Big endian
 
+
+    // send syn packet of 3 way handshake
+    char buffer[1024] = {0};
+    int syn_pkt_size = create_syn_packet(buffer);
+    int did_send = sendto(sockfd, buffer, syn_pkt_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+    fprintf(stderr, "%s %d %s\n", "[DEBUG] Sent SYN packet of", did_send, "bytes");
+
+
+    // // wait for SYN ACK
+    // int bytes_recvd = recvfrom(sockfd, buffer, sizeof(buffer), MSG_PEEK, (struct sockaddr *)&server_addr, (socklen_t *)(sizeof(server_addr)));
+    // packet syn_ack;
+    // if (parity_check(buffer, bytes_recvd) == false)
+    //     return 0; // drop packet
+    // parse_packet(&syn_ack, buffer, bytes_recvd);
+    // print_diag(&syn_ack, RECV);
+
+    return 0;
     init_io();
     listen_loop(sockfd, &server_addr, CLIENT, input_io, output_io);
 
