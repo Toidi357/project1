@@ -17,7 +17,7 @@ bool parity_check(char *buffer, size_t size)
         }
     }
 
-    return val;
+    return val == 0;
 }
 
 // fills in pkt with buffer information
