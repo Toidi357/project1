@@ -1,4 +1,4 @@
-CC=gcc
+CC=g++
 CPPFLAGS=-Wall -Wextra -g
 LDFLAGS= 
 LDLIBS=

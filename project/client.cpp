@@ -32,7 +32,7 @@ int create_syn_packet(char* buffer)
     return sizeof(pkt);
 }
 
-int create_ack_packet(char* buffer, int seq) {
+int create_ack_packet(char* buffer, int seq, int ack) {
     packet pkt;
     pkt.seq = htons(0); // send 0 for now
     pkt.ack = htons(seq + 1);
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
     socklen_t addr_len = sizeof(server_addr);
     server_addr.sin_family = AF_INET; // use IPv4
     // Only supports localhost as a hostname, but that's all we'll test on
-    char *addr = strcmp(argv[1], "localhost") == 0 ? "127.0.0.1" : argv[1];
+    const char *addr = strcmp(argv[1], "localhost") == 0 ? "127.0.0.1" : argv[1];
     server_addr.sin_addr.s_addr = inet_addr(addr);
     // Set sending port
     int PORT = atoi(argv[2]);
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
     print_diag(&syn_ack);
 
     // send ACK
-    int ack_pkt_size = create_ack_packet(buffer, syn_ack.seq);
+    int ack_pkt_size = create_ack_packet(buffer, syn_ack.seq, syn_ack.ack);
     did_send = sendto(sockfd, buffer, ack_pkt_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     fprintf(stderr, "[DEBUG] Sent ACK packet of %d bytes\n", did_send);
 
