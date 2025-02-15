@@ -1,17 +1,17 @@
 #include "consts.h"
-#include "io.h"
 #include "transport.h"
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
 
 
 // fills in the char* buffer with the packet and returns packet length
-int create_syn_ack_packet(char* buffer, int seq){
+int create_syn_ack_packet(uint8_t* buffer, int seq){
     packet pkt;
     pkt.seq = htons(rand() % 1001); // random
     pkt.ack = htons(seq + 1);    // set to previous SEQ + 1
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 
     struct sockaddr_in client_addr; // Same information, but about client
     socklen_t s = sizeof(struct sockaddr_in);
-    char buffer[1024] = {0};
+    uint8_t buffer[1024] = {0};
 
     // Wait for client connection
     fprintf(stderr, "%s\n", "[DEBUG]: Listening for SYN packets");
@@ -87,10 +87,12 @@ int main(int argc, char **argv)
     parse_packet(&ack_pkt, buffer, bytes_recvd);
     print_diag(&ack_pkt);
 
+    // nonblocking
+    fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK);
+    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
-    return 0;
-    init_io();
-    listen_loop(sockfd, &client_addr, SERVER, input_io, output_io);
+
+    listen_loop(sockfd, client_addr, SERVER);
 
     return 0;
 }

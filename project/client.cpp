@@ -1,18 +1,18 @@
 #include "consts.h"
-#include "io.h"
 #include "transport.h"
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
 
 
 // fills in the char* buffer with the packet and returns packet length
-int create_syn_packet(char* buffer)
+int create_syn_packet(uint8_t* buffer)
 {
     packet pkt;
     pkt.seq = htons(rand() % 1001);
@@ -32,9 +32,9 @@ int create_syn_packet(char* buffer)
     return sizeof(pkt);
 }
 
-int create_ack_packet(char* buffer, int seq, int ack) {
+int create_ack_packet(uint8_t* buffer, int seq, int ack) {
     packet pkt;
-    pkt.seq = htons(0); // send 0 for now
+    pkt.seq = htons(ack);
     pkt.ack = htons(seq + 1);
     pkt.length = htons(0);
     pkt.win = htons(1012);
@@ -62,9 +62,9 @@ int main(int argc, char **argv)
     // seed our randomness generator
     srand(time(NULL));
 
-    /* Create sockets */
+    // Create sockets    use IPv4  use UDP
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    // use IPv4  use UDP
+    
 
     /* Construct server address */
     struct sockaddr_in server_addr;
@@ -79,14 +79,14 @@ int main(int argc, char **argv)
 
 
     // send syn packet of 3 way handshake
-    char buffer[1024] = {0};
+    uint8_t buffer[1024] = {0};
     int syn_pkt_size = create_syn_packet(buffer);
     int did_send = sendto(sockfd, buffer, syn_pkt_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     fprintf(stderr, "%s %d %s\n", "[DEBUG] Sent SYN packet of", did_send, "bytes");
 
 
     // wait for SYN ACK
-    int bytes_recvd = recvfrom(sockfd, buffer, sizeof(buffer), MSG_PEEK, (struct sockaddr *)&server_addr, &addr_len);
+    int bytes_recvd = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&server_addr, &addr_len);
     packet syn_ack;
     if (parity_check(buffer, bytes_recvd) == false)
         return 0; // drop packet
@@ -98,10 +98,12 @@ int main(int argc, char **argv)
     did_send = sendto(sockfd, buffer, ack_pkt_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     fprintf(stderr, "[DEBUG] Sent ACK packet of %d bytes\n", did_send);
 
+    // nonblocking
+    fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK);
+    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
-    return 0;
-    init_io();
-    listen_loop(sockfd, &server_addr, CLIENT, input_io, output_io);
+
+    listen_loop(sockfd, server_addr, CLIENT);
 
     return 0;
 }
