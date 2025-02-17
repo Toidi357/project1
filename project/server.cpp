@@ -11,23 +11,28 @@
 
 
 // fills in the char* buffer with the packet and returns packet length
-int create_syn_ack_packet(uint8_t* buffer, int seq){
-    packet pkt;
-    pkt.seq = htons(rand() % 1001); // random
-    pkt.ack = htons(seq + 1);    // set to previous SEQ + 1
-    pkt.length = htons(0); // length of payload
-    pkt.win = htons(1012); // constant set
-    pkt.flags = SYN | ACK;
-    pkt.unused = htons(0);
-    memcpy(buffer, &pkt, sizeof(pkt));
+int create_syn_ack_packet(uint8_t* buffer, int seq, int payload_size){
+    size_t packet_size = PACKET_HEADER_SIZE + payload_size;
+    uint8_t temp_buffer[packet_size];
+    packet *pkt = (packet *)temp_buffer;
+
+    pkt->seq = htons(rand() % 1001); // random
+    pkt->ack = htons(seq + 1);    // set to previous SEQ + 1
+    pkt->length = htons(payload_size); // length of payload
+    pkt->win = htons(1012); // constant set
+    pkt->flags = SYN | ACK;
+    pkt->unused = htons(0);
+    memcpy(pkt->payload, buffer, payload_size);
+
     // check parity
-    if (parity_check(buffer, sizeof(pkt)) == false)
+    if (parity_check(temp_buffer, packet_size) == false)
     {
-        pkt.flags |= PARITY;
-        memcpy(buffer, &pkt, sizeof(pkt));
+        pkt->flags |= PARITY;
     }
 
-    return sizeof(pkt);
+    memcpy(buffer, temp_buffer, packet_size);
+
+    return packet_size;
 }
 
 int main(int argc, char **argv)
@@ -75,7 +80,7 @@ int main(int argc, char **argv)
     print_diag(&syn_pkt);
 
     // send out SYN ACK
-    int syn_ack_size = create_syn_ack_packet(buffer, syn_pkt.seq);
+    int syn_ack_size = create_syn_ack_packet(buffer, syn_pkt.seq, 0);
     int did_send = sendto(sockfd, buffer, syn_ack_size, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
     fprintf(stderr, "%s %d %s\n", "[DEBUG] Sent SYN ACK packet of", did_send, "bytes");
 
@@ -92,7 +97,7 @@ int main(int argc, char **argv)
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
 
-    listen_loop(sockfd, client_addr, SERVER, ack_pkt.ack + 1, ack_pkt.seq + 1);
+    listen_loop(sockfd, client_addr, SERVER, ack_pkt.ack, ack_pkt.seq + 1);
 
     return 0;
 }

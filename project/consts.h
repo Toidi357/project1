@@ -83,7 +83,7 @@ static inline void print(char *txt)
 
 static inline void print_diag(packet *pkt)
 {
-    fprintf(stderr, "[INFO] ");
+    fprintf(stderr, "[DEBUG] RECV: ");
 
     fprintf(stderr, "SEQ: %hu ACK: %hu LEN: %hu WIN: %hu FLAGS: ", pkt->seq, pkt->ack, pkt->length, pkt->win);
     bool syn = pkt->flags & 1;
