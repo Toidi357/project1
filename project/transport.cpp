@@ -71,6 +71,21 @@ int create_packet(uint8_t *buffer, int seq, int ack, int win, bool ackflag, int 
     return packet_size;
 }
 
+// These 2 functions help create the sending and receiving buffer
+// and sorted in order
+static void arr_insert(std::vector<int> &arr, int element) {
+    // Find the correct position to insert the element
+    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
+    // Insert the element at the correct position
+    arr.insert(pos, element);
+}
+static void arr_remove(std::vector<int> &arr, int element) {
+    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
+    if (pos != arr.end() && *pos == element) {
+        arr.erase(arr.begin(), pos + 1);
+    }
+}
+
 // Main function of transport layer; never quits
 int listen_loop(int sockfd, struct sockaddr_in addr, int type, int init_seq, int next_expected)
 {
@@ -84,7 +99,13 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int type, int init_seq, int
         packet pkt;
         int current_packet = init_seq;
         int expected_packet = next_expected;
-        fprintf(stderr, "Initial: %d %d\n", current_packet, expected_packet);
+
+        bool create_ack = false;
+
+        // used for flow control
+        int MAX_INFLIGHT = 2;              // initially set max to 1 MSS
+        std::vector<int> packets_inflight; // contains the SEQ numbers of those in flight
+        std::vector<int> recv_buffer; // contains SEQ numbers received not ACKed out yet
 
         while (true)
         {
@@ -96,32 +117,88 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int type, int init_seq, int
 
             if (bytes_recvd > 0)
             {
+                // drop packet if corrupted
+                if (parity_check(buffer, bytes_recvd) == false)
+                    continue;
+                
                 fprintf(stderr, "bytesrecvd: %d\n", bytes_recvd);
  
                 parse_packet(&pkt, buffer, bytes_recvd);
 
-                // write to stdout
-                write(STDOUT_FILENO, pkt.payload, bytes_recvd - PACKET_HEADER_SIZE);
-                int pkt_size = create_packet(buffer, current_packet, expected_packet + 1, 1012, true, 0);
+                // if its just a normal ACK packet, TODO
+                if (pkt.length == 0 && ((pkt.flags >> 1) & 1) == 1) {
+                    // figure out the ack number
+                    int highest_acked = pkt.ack - 1;
+                    arr_remove(packets_inflight, highest_acked);
+                }
+                else {
+                    // Note this packet to get ACKed
+                    create_ack = true;
+                    arr_insert(recv_buffer, pkt.seq);
+                }
+            }
 
+            // Read from stdin if we can
+            if ((int)packets_inflight.size() < MAX_INFLIGHT)
+            {
+                int bytes_sent = read(STDIN_FILENO, buffer, MAX_PAYLOAD);
+
+                // 3 cases: data + no ack, data + yes ack, no data + yes ack
+                if (create_ack == false && bytes_sent > 0)
+                {
+                    int pkt_size = create_packet(buffer, current_packet, next_expected, 1012, false, bytes_sent);
+                    fprintf(stderr, "bytessent: %d\n", pkt_size);
+
+                    int did_send = sendto(sockfd, buffer, pkt_size, 0, (struct sockaddr *)&addr, sizeof(addr));
+                    if (did_send < 0)
+                        return errno;
+
+                    arr_insert(packets_inflight, current_packet); // number of packets unacked
+                    current_packet++;                             // increment the SEQ
+                }
+                else if (create_ack == true && bytes_sent > 0)
+                {
+                    // write to stdout
+                    write(STDOUT_FILENO, pkt.payload, bytes_recvd - PACKET_HEADER_SIZE);
+                }
+                else if (create_ack == true) {
+                    // get packet in buffer to ACK
+                    int to_ack = recv_buffer.front();
+
+                    // create an ACK and send it out
+                    int pkt_size = create_packet(buffer, current_packet, to_ack + 1, 1012, true, 0);
+                    int did_send = sendto(sockfd, buffer, pkt_size, 0, (struct sockaddr *)&addr, sizeof(addr));
+                    if (did_send < 0)
+                        return errno;
+                
+                    // remove it from our unacked buffers
+                    arr_remove(recv_buffer, to_ack);
+                    current_packet++; // increment our SEQ
+                    create_ack = false;
+
+                    // write out contents of that packet
+                    write(STDOUT_FILENO, pkt.payload, bytes_recvd - PACKET_HEADER_SIZE);
+                }
+            }
+            else if (create_ack == true) // if we've hit max inflight packets but have an ACK to send out, just do it
+            {
+                // get packet in buffer to ACK
+                int to_ack = recv_buffer.front();
+
+                // create an ACK and send it out
+                int pkt_size = create_packet(buffer, current_packet, to_ack + 1, 1012, true, 0);
                 int did_send = sendto(sockfd, buffer, pkt_size, 0, (struct sockaddr *)&addr, sizeof(addr));
                 if (did_send < 0)
                     return errno;
+            
+                // remove it from our unacked buffers
+                arr_remove(recv_buffer, to_ack);
+                current_packet++; // increment our SEQ
+                create_ack = false;
 
-                current_packet++;
-                expected_packet++;
+                // write out contents of that packet
+                write(STDOUT_FILENO, pkt.payload, bytes_recvd - PACKET_HEADER_SIZE);
             }
-
-            // // Read from stdin
-            // int bytes_inputted = read(STDIN_FILENO, buffer, MAX_PAYLOAD);
-
-            // // If data, send to socket
-            // if (bytes_inputted > 0)
-            // {
-            //     int did_send = sendto(sockfd, buffer, bytes_inputted, 0, (struct sockaddr *)&addr, clientsize);
-            //     if (did_send < 0)
-            //         return errno;
-            // }
         }
     }
 
@@ -138,6 +215,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int type, int init_seq, int
         // used for flow control
         int MAX_INFLIGHT = 2;              // initially set max to 1 MSS
         std::vector<int> packets_inflight; // contains the SEQ numbers of those in flight
+        std::vector<int> recv_buffer; // contains SEQ numbers received not sent out yet
 
         while (true)
         {
@@ -150,7 +228,9 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int type, int init_seq, int
             // If data, client is connected and write to stdout
             if (bytes_recvd > 0)
             {
-                // write to stdout
+                if (parity_check(buffer, bytes_recvd) == false)
+                    continue;
+
                 fprintf(stderr, "bytesrecvd: %d\n", bytes_recvd);
                 parse_packet(&pkt, buffer, bytes_recvd);
 
@@ -163,6 +243,8 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int type, int init_seq, int
                 }
                 // write to stdout
                 write(STDOUT_FILENO, pkt.payload, bytes_recvd - PACKET_HEADER_SIZE);
+
+                
             }
 
             // Read from stdin if we can

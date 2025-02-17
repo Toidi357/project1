@@ -100,19 +100,3 @@ static inline void print_diag(packet *pkt)
     }
     fprintf(stderr, "\n");
 }
-
-// These 2 functions help create the sending and receiving buffer
-// and sorted in order
-static void arr_insert(std::vector<int> &arr, int element) {
-    // Find the correct position to insert the element
-    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
-    // Insert the element at the correct position
-    arr.insert(pos, element);
-}
-
-static void arr_remove(std::vector<int> &arr, int element) {
-    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
-    if (pos != arr.end() && *pos == element) {
-        arr.erase(arr.begin(), pos + 1);
-    }
-}
