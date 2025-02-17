@@ -92,7 +92,7 @@ int main(int argc, char **argv)
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
 
-    listen_loop(sockfd, client_addr, SERVER);
+    listen_loop(sockfd, client_addr, SERVER, ack_pkt.ack + 1, ack_pkt.seq + 1);
 
     return 0;
 }

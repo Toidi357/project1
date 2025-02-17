@@ -3,7 +3,7 @@ CPPFLAGS=-Wall -Wextra -g
 LDFLAGS= 
 LDLIBS=
 
-DEPS=transport.o io.o
+DEPS=transport.o
 
 all: server client 
 

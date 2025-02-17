@@ -103,7 +103,7 @@ int main(int argc, char **argv)
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
 
 
-    listen_loop(sockfd, server_addr, CLIENT);
+    listen_loop(sockfd, server_addr, CLIENT, syn_ack.ack + 1, syn_ack.seq + 1);
 
     return 0;
 }

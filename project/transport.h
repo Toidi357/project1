@@ -10,4 +10,4 @@ bool parity_check(uint8_t *buffer, size_t size);
 void parse_packet(packet* pkt, uint8_t *buffer, size_t bytes_recvd);
 
 // Main function of transport layer; never quits
-void listen_loop(int sockfd, struct sockaddr_in addr, int type);
+void listen_loop(int sockfd, struct sockaddr_in addr, int type, int init_seq, int next_expected);

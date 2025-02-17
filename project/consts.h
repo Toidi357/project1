@@ -4,9 +4,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <algorithm>
+#include <vector>
 
 // Maximum payload size
 #define MAX_PAYLOAD 1012
+#define PACKET_HEADER_SIZE 12
 
 // Retransmission time
 #define TV_DIFF(end, start)                                           \
@@ -45,7 +48,7 @@ typedef struct
     uint16_t win;
     uint16_t flags; // LSb 0 SYN, LSb 1 ACK, LSb 2 Parity
     uint16_t unused;
-    uint8_t payload[0];
+    uint8_t payload[MAX_PAYLOAD];
 } packet;
 
 // Bit counter
@@ -96,4 +99,20 @@ static inline void print_diag(packet *pkt)
         fprintf(stderr, "P");
     }
     fprintf(stderr, "\n");
+}
+
+// These 2 functions help create the sending and receiving buffer
+// and sorted in order
+static void arr_insert(std::vector<int> &arr, int element) {
+    // Find the correct position to insert the element
+    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
+    // Insert the element at the correct position
+    arr.insert(pos, element);
+}
+
+static void arr_remove(std::vector<int> &arr, int element) {
+    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
+    if (pos != arr.end() && *pos == element) {
+        arr.erase(arr.begin(), pos + 1);
+    }
 }
