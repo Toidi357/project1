@@ -20,7 +20,7 @@ int create_syn_packet(uint8_t* buffer, int payload_size)
 
     pkt->seq = htons(rand() % 1001);
     pkt->ack = htons(0);    // not used
-    pkt->length = htons(0); // length of payload
+    pkt->length = htons(payload_size); // length of payload
     pkt->win = htons(1012); // constant set
     pkt->flags = SYN;
     pkt->unused = htons(0);
@@ -44,7 +44,7 @@ int create_ack_packet(uint8_t* buffer, int seq, int ack, int payload_size) {
 
     pkt->seq = htons(ack);
     pkt->ack = htons(seq + 1);
-    pkt->length = htons(0);
+    pkt->length = htons(payload_size);
     pkt->win = htons(1012);
     pkt->flags = ACK;
     pkt->unused = htons(0);
@@ -87,10 +87,14 @@ int main(int argc, char **argv)
     int PORT = atoi(argv[2]);
     server_addr.sin_port = htons(PORT); // Big endian
 
+    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
+
+    uint8_t buffer[1024] = {0};
 
     // send syn packet of 3 way handshake
-    uint8_t buffer[1024] = {0};
-    int syn_pkt_size = create_syn_packet(buffer, 0);
+    int bytes_sent = read(STDIN_FILENO, buffer, MAX_PAYLOAD); // workaround since packets of 3-way handshake can contain data
+    if (bytes_sent < 0) bytes_sent = 0; // bullsh*t
+    int syn_pkt_size = create_syn_packet(buffer, bytes_sent);
     int did_send = sendto(sockfd, buffer, syn_pkt_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     fprintf(stderr, "%s %d %s\n", "[DEBUG] Sent SYN packet of", did_send, "bytes");
 
@@ -102,16 +106,18 @@ int main(int argc, char **argv)
         return 0; // drop packet
     parse_packet(&syn_ack, buffer, bytes_recvd);
     print_diag(&syn_ack);
+    if (syn_ack.length != 0) 
+        write(STDOUT_FILENO, syn_ack.payload, syn_ack.length);
 
     // send ACK
-    int ack_pkt_size = create_ack_packet(buffer, syn_ack.seq, syn_ack.ack, 0);
+    bytes_sent = read(STDIN_FILENO, buffer, MAX_PAYLOAD); // workaround since packets of 3-way handshake can contain data
+    if (bytes_sent < 0) bytes_sent = 0; // bullsh*t
+    int ack_pkt_size = create_ack_packet(buffer, syn_ack.seq, syn_ack.ack, bytes_sent);
     did_send = sendto(sockfd, buffer, ack_pkt_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     fprintf(stderr, "[DEBUG] Sent ACK packet of %d bytes\n", did_send);
 
     // nonblocking
     fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK);
-    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
-
 
     listen_loop(sockfd, server_addr, syn_ack.ack + 1, syn_ack.seq + 1);
 
