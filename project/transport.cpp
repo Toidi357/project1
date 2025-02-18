@@ -85,7 +85,9 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
             }
             else
             {
-                received_packets.insert(pkt.seq);
+                // empty ACKs are SEQ 0...bullsht
+                if (pkt.seq != 0)
+                    received_packets.insert(pkt.seq);
 
                 // if this is an ACK packet, remove corresponding from sending buffer
                 if (((pkt.flags >> 1) & 1) == 1)
@@ -93,13 +95,12 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
                     int highest_acked = pkt.ack - 1;
                     fprintf(stderr, "Received ACK: %d SEQ: %d\n", pkt.ack, pkt.seq);
                     arr_remove(packets_inflight, highest_acked);
-                    highest_seq_received = pkt.seq + 1;
 
                     // reset timer
                     last_ack_time = std::chrono::steady_clock::now();
                 }
 
-                // If packet is just a raw ACK, no need to worry
+                // If packet is just a raw ACK, no need to do anything as it has SEQ 0
                 if (pkt.length == 0)
                 {
                     create_ack = false;
@@ -161,13 +162,12 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
                 // get packet in buffer to ACK
                 int to_ack = recv_buffer.back();
 
-                // create an ACK and send it out
-                int sent_bytes = create_and_send(sockfd, addr, buffer, current_seq, to_ack + 1, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
-                fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", current_seq, to_ack + 1, sent_bytes);
+                // create an ACK and send it out                   empty ACKs have SEQ 0
+                int sent_bytes = create_and_send(sockfd, addr, buffer, 0, to_ack + 1, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
+                fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", 0, to_ack + 1, sent_bytes);
 
                 // remove it from our unacked buffers
                 arr_remove_std(recv_buffer, to_ack);
-                current_seq++; // increment our SEQ
                 highest_seq_received = to_ack + 1;
                 create_ack = false;
 
@@ -180,13 +180,12 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
             // get packet in buffer to ACK
             int to_ack = recv_buffer.back();
 
-            // create an ACK and send it out
-            int sent_bytes = create_and_send(sockfd, addr, buffer, current_seq, to_ack + 1, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
-            fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", current_seq, to_ack + 1, sent_bytes);
+            // create an ACK and send it out                   empty ACKs have SEQ 0
+            int sent_bytes = create_and_send(sockfd, addr, buffer, 0, to_ack + 1, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
+            fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", 0, to_ack + 1, sent_bytes);
 
             // remove it from our unacked buffers
             arr_remove_std(recv_buffer, to_ack);
-            current_seq++; // increment our SEQ
             highest_seq_received = to_ack + 1;
             create_ack = false;
 

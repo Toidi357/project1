@@ -111,15 +111,22 @@ int main(int argc, char **argv)
 
     // send ACK
     bytes_sent = read(STDIN_FILENO, buffer, MAX_PAYLOAD); // workaround since packets of 3-way handshake can contain data
-    if (bytes_sent < 0) bytes_sent = 0; // bullsh*t
-    int ack_pkt_size = create_ack_packet(buffer, syn_ack.seq, syn_ack.ack, bytes_sent);
+    int seq = 0;
+    if (bytes_sent < 0)
+        bytes_sent = 0; // bullsh*t
+    else
+        seq = syn_ack.ack; // more bullsh*t
+    int ack_pkt_size = create_ack_packet(buffer, syn_ack.seq, seq, bytes_sent);
     did_send = sendto(sockfd, buffer, ack_pkt_size, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
     fprintf(stderr, "[DEBUG] Sent ACK packet of %d bytes\n", did_send);
 
     // nonblocking
     fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK);
 
-    listen_loop(sockfd, server_addr, syn_ack.ack + 1, syn_ack.seq + 1);
+    if (ack_pkt_size == PACKET_HEADER_SIZE)
+        listen_loop(sockfd, server_addr, syn_ack.ack, syn_ack.seq + 1);
+    else
+        listen_loop(sockfd, server_addr, seq + 1, syn_ack.seq + 1);
 
     return 0;
 }

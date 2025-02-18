@@ -98,13 +98,17 @@ int main(int argc, char **argv)
         return 0; // drop packet
     parse_packet(&ack_pkt, buffer, bytes_recvd);
     print_diag(&ack_pkt);
-    if (ack_pkt.length != 0) 
+    int expected = 0;
+    if (ack_pkt.length != 0)
+    {
         write(STDOUT_FILENO, ack_pkt.payload, ack_pkt.length);
+        expected = ack_pkt.seq + 1;
+    }
 
     // nonblocking
     fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK);
 
-    listen_loop(sockfd, client_addr, ack_pkt.ack, ack_pkt.seq + 1);
+    listen_loop(sockfd, client_addr, ack_pkt.ack, expected);
 
     return 0;
 }
