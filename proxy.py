@@ -26,11 +26,22 @@ def udp_proxy(drop_rate):
     while True:
         # Receive data from either the client or server
         data, addr = sock.recvfrom(65535)  # Maximum UDP packet size
-        
-        if client_addr is None:
-            # First packet: assume it's from the client
-            client_addr = addr
-            print(f"Client address set to {client_addr}")
+
+        # Extract the flags (equivalent to the C++ logic)
+        if len(data) >= 10:  # Ensure the packet is large enough to access buffer[8] and buffer[9]
+            flags = (data[9] << 8) | (data[8] & 0xFF)
+
+            # SYN flag (no ACK) means new connection
+            if (flags & 1) == 1 and ((flags >> 1) & 1) != 1:
+                print(f"SYN packet detected. Resetting packet counts and updating client address.")
+                
+                # Reset packet counts
+                client_to_server_count = 0
+                server_to_client_count = 0
+                
+                # Update client address to the new client
+                client_addr = addr
+                print(f"Client address updated to {client_addr}")
 
         if addr == client_addr:
             # Packet is from the client (client-to-server)

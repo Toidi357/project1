@@ -4,7 +4,7 @@ import os
 import signal
 
 CLIENT_PORT = 8080
-SERVER_PORT = 8080
+SERVER_PORT = 8081
 
 # Path to the project folder
 project_folder = "./project"
@@ -38,8 +38,8 @@ def run_test(server_cmd, client_cmd, expected_out_size, expected_in_size, test_n
     # Start the client process
     client_process = subprocess.Popen(client_cmd, shell=True, preexec_fn=os.setsid)
 
-    # Let both processes run for 1 second
-    time.sleep(1)
+    # Let both processes run for 10 seconds
+    time.sleep(10)
 
     # Terminate both processes
     os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
