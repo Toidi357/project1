@@ -3,6 +3,13 @@
 #include <cstring>
 #include <arpa/inet.h>
 
+// Struct for our inflight and recv buffers
+struct PacketInfo {
+    int seq;
+    uint8_t packet_data[1024];
+    size_t packet_size;
+};
+
 // this function xors all the bits of the packet and returns True if it is 0
 bool parity_check(uint8_t *buffer, size_t size)
 {
@@ -78,14 +85,31 @@ int create_and_send(int sockfd, struct sockaddr_in addr, uint8_t *buffer, int se
 
 // These 2 functions help create the sending and receiving buffer
 // and sorted in order
-static void arr_insert(std::vector<int> &arr, int element)
+static void arr_insert(std::vector<PacketInfo> &arr, const PacketInfo &element) {
+    auto pos = std::lower_bound(arr.begin(), arr.end(), element,
+                                [](const PacketInfo &a, const PacketInfo &b) {
+                                    return a.seq < b.seq;
+                                });
+    arr.insert(pos, element);
+}
+static void arr_remove(std::vector<PacketInfo> &arr, int seq) {
+    auto pos = std::lower_bound(arr.begin(), arr.end(), seq,
+                                [](const PacketInfo &a, int seq) {
+                                    return a.seq < seq;
+                                });
+    if (pos != arr.end() && pos->seq == seq) {
+        arr.erase(arr.begin(), pos + 1);
+    }
+}
+
+static void arr_insert_std(std::vector<int> &arr, int element)
 {
     // Find the correct position to insert the element
     auto pos = std::lower_bound(arr.begin(), arr.end(), element);
     // Insert the element at the correct position
     arr.insert(pos, element);
 }
-static void arr_remove(std::vector<int> &arr, int element)
+static void arr_remove_std(std::vector<int> &arr, int element)
 {
     auto pos = std::lower_bound(arr.begin(), arr.end(), element);
     if (pos != arr.end() && *pos == element)

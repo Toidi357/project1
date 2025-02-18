@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "vector": "cpp",
+        "unordered_set": "cpp",
+        "*.tcc": "cpp"
     }
 }
