@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <vector>
 #include <cstring>
+#include <arpa/inet.h>
 
 // this function xors all the bits of the packet and returns True if it is 0
 bool parity_check(uint8_t *buffer, size_t size)
@@ -64,6 +65,15 @@ int create_packet(uint8_t *buffer, int seq, int ack, int win, bool ackflag, int 
     memcpy(buffer, temp_buffer, packet_size);
 
     return packet_size;
+}
+
+// use create_packet and sends it out too, returns packet send size
+int create_and_send(int sockfd, struct sockaddr_in addr, uint8_t *buffer, int seq, int ack, int win, bool ackflag, int payload_size)
+{
+    int pkt_size = create_packet(buffer, seq, ack, win, ackflag, payload_size);
+    sendto(sockfd, buffer, pkt_size, 0, (struct sockaddr *)&addr, sizeof(addr));
+
+    return pkt_size;
 }
 
 // These 2 functions help create the sending and receiving buffer
