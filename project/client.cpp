@@ -112,7 +112,7 @@ int main(int argc, char **argv)
     // send ACK
     bytes_sent = read(STDIN_FILENO, buffer, MAX_PAYLOAD); // workaround since packets of 3-way handshake can contain data
     int seq = 0;
-    if (bytes_sent < 0)
+    if (bytes_sent <= 0)
         bytes_sent = 0; // bullsh*t
     else
         seq = syn_ack.ack; // more bullsh*t

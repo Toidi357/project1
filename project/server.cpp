@@ -35,6 +35,30 @@ int create_syn_ack_packet(uint8_t* buffer, int seq, int payload_size){
     return packet_size;
 }
 
+// creates a quick and simple ACK to the client's ACK in the 3-way
+int create_simple_ack_packet(uint8_t* buffer, int ack){
+    size_t packet_size = PACKET_HEADER_SIZE;
+    uint8_t temp_buffer[packet_size];
+    packet *pkt = (packet *)temp_buffer;
+
+    pkt->seq = htons(0);
+    pkt->ack = htons(ack);
+    pkt->length = htons(0);
+    pkt->win = htons(1012); // constant set
+    pkt->flags = SYN | ACK;
+    pkt->unused = htons(0);
+
+    // check parity
+    if (parity_check(temp_buffer, packet_size) == false)
+    {
+        pkt->flags |= PARITY;
+    }
+
+    memcpy(buffer, temp_buffer, packet_size);
+
+    return packet_size;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -98,11 +122,16 @@ int main(int argc, char **argv)
         return 0; // drop packet
     parse_packet(&ack_pkt, buffer, bytes_recvd);
     print_diag(&ack_pkt);
-    int expected = 0;
+    int expected = syn_pkt.seq + 2;
     if (ack_pkt.length != 0)
     {
         write(STDOUT_FILENO, ack_pkt.payload, ack_pkt.length);
         expected = ack_pkt.seq + 1;
+
+        // need a quick ACK back
+        bytes_sent = create_simple_ack_packet(buffer, ack_pkt.seq + 1);
+        sendto(sockfd, buffer, bytes_sent, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
+        fprintf(stderr, "[DEBUG] Sent simple ACK packet of %d bytes\n", bytes_sent);
     }
 
     // nonblocking

@@ -4,7 +4,7 @@ import os
 import signal
 
 CLIENT_PORT = 8080
-SERVER_PORT = 8081
+SERVER_PORT = 8080
 
 # Path to the project folder
 project_folder = "./project"
