@@ -105,7 +105,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
     bool create_ack = false;
 
     // used for flow control
-    int MAX_INFLIGHT = 1;              // initially set max to 1 MSS
+    int MAX_INFLIGHT = 5;              // initially set max to 1 MSS
     std::vector<int> packets_inflight; // contains the SEQ numbers of those in flight
     std::vector<int> recv_buffer;      // contains SEQ numbers received not ACKed out yet
 
