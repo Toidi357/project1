@@ -72,7 +72,7 @@ def udp_proxy(drop_rate):
 
 if __name__ == "__main__":
     # Set the drop rate (e.g., 0.2 for 20% packet loss)
-    drop_rate = 0.2  # Change this value as needed
+    drop_rate = 0.1  # Change this value as needed
 
     if drop_rate < 0 or drop_rate > 1:
         print("Drop rate must be between 0 and 1")

@@ -28,7 +28,7 @@ void retransmit_first_packet(int sockfd, struct sockaddr_in addr, std::vector<Pa
 
 
 // Main function of transport layer; never quits
-int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expected)
+int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expected, bool init_ack)
 {
 
     uint8_t buffer[1024] = {0};
@@ -39,7 +39,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
     int current_seq = init_seq;
     int highest_seq_received = next_expected;
 
-    bool create_ack = false;
+    bool create_ack = init_ack;
 
     // used for flow control
     int MAX_INFLIGHT = 1;              // initially set max to 1 MSS
@@ -48,6 +48,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
 
     // use in case of multiple retransmits
     std::unordered_set<int> received_packets;
+    DupACKs dupacks;
     
     // use for retransmits
     last_ack_time = std::chrono::steady_clock::now();
@@ -75,17 +76,15 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
 
             if (received_packets.count(pkt.seq) != 0) // this seq has already been seen
             {
-                // create and send ACK
-                int sent_bytes = create_and_send(sockfd, addr, buffer, current_seq, highest_seq_received, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
-                fprintf(stderr, "Already seen SEQ %d, Sent SEQ: %d ACK %d LEN: %d\n", pkt.seq, current_seq, highest_seq_received, sent_bytes);
-
-                current_seq++;
+                // create and send simple ACK
+                int sent_bytes = create_and_send(sockfd, addr, buffer, 0, highest_seq_received, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
+                fprintf(stderr, "Already seen SEQ %d, Sent SEQ: %d ACK %d LEN: %d\n", pkt.seq, 0, highest_seq_received, sent_bytes);
 
                 create_ack = false;
             }
             else
             {
-                // empty ACKs are SEQ 0...bullsht
+                // empty ACKs are SEQ 0
                 if (pkt.seq != 0)
                     received_packets.insert(pkt.seq);
 
@@ -98,6 +97,14 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
 
                     // reset timer
                     last_ack_time = std::chrono::steady_clock::now();
+
+                    // check if 3 dup acks, 2nd condition is to ensure that we haven't finished sending
+                    if (dupacks.add(pkt.ack) && packets_inflight.size() != 0)
+                    {
+                        fprintf(stderr, "3 DUP ACKs received, retransmitting first packet in buffer\n");
+                        retransmit_first_packet(sockfd, addr, packets_inflight);
+                    }
+                        
                 }
 
                 // If packet is just a raw ACK, no need to do anything as it has SEQ 0
@@ -136,7 +143,14 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
             else if (create_ack == true && bytes_read > 0) // case need to ack and data
             {
                 // get packet in buffer to ACK
-                int to_ack = recv_buffer.back();
+                int to_ack;
+                if (recv_buffer.size() == 0) { 
+                    // there's a quirk here, if there's nothing in the buffer, we just ack out whatever we want next
+                    // i think this only triggers on the first looparound called by client.cpp when init_ack is set to true
+                    to_ack = highest_seq_received;
+                }
+                else 
+                    to_ack = recv_buffer.back();
 
                 // create and send
                 int sent_bytes = create_and_send(sockfd, addr, buffer, current_seq, highest_seq_received, MAX_INFLIGHT * MAX_PAYLOAD, true, bytes_read);

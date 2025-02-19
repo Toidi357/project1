@@ -117,3 +117,25 @@ static void arr_remove_std(std::vector<int> &arr, int element)
         arr.erase(arr.begin(), pos + 1);
     }
 }
+
+// Data structure to determine whether 3 dup ACKs have been received or not
+class DupACKs {
+public:
+    bool add(int ack) { // returns 1 if after adding, its 3 dup acks
+        // sliding window logic
+        arr[0] = arr[1];
+        arr[1] = arr[2];
+        arr[2] = ack;
+
+        if (arr[0] == arr[1] and arr[1] == arr[2]) {
+            dupAcks = true;
+        }
+        else {
+            dupAcks = false;
+        }
+        return dupAcks;
+    };
+    bool dupAcks = false;
+private:
+    std::vector<int> arr = {-1, -1, -1};
+};

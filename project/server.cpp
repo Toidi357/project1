@@ -101,8 +101,6 @@ int main(int argc, char **argv)
                                (struct sockaddr *)&client_addr, &s);
     // upon getting a packet, check its SEQ number and SYN flag, note everything is already in big endian order
     packet syn_pkt;
-    if (parity_check(buffer, bytes_recvd) == false)
-        return 0; // drop packet
     parse_packet(&syn_pkt, buffer, bytes_recvd);
     print_diag(&syn_pkt);
     if (syn_pkt.length != 0) 
@@ -118,8 +116,6 @@ int main(int argc, char **argv)
     // wait for ACK
     bytes_recvd = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr, &s);
     packet ack_pkt;
-    if (parity_check(buffer, bytes_recvd) == false)
-        return 0; // drop packet
     parse_packet(&ack_pkt, buffer, bytes_recvd);
     print_diag(&ack_pkt);
     int expected = syn_pkt.seq + 2;
@@ -137,7 +133,7 @@ int main(int argc, char **argv)
     // nonblocking
     fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK);
 
-    listen_loop(sockfd, client_addr, ack_pkt.ack, expected);
+    listen_loop(sockfd, client_addr, ack_pkt.ack, expected, false);
 
     return 0;
 }
