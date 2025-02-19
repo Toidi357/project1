@@ -2,6 +2,8 @@
 #include <vector>
 #include <cstring>
 #include <arpa/inet.h>
+#include <stdarg.h>
+#include <chrono>
 
 // Struct for our inflight and recv buffers
 struct PacketInfo {
@@ -102,20 +104,10 @@ static void arr_remove(std::vector<PacketInfo> &arr, int seq) {
     }
 }
 
-static void arr_insert_std(std::vector<int> &arr, int element)
-{
-    // Find the correct position to insert the element
-    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
-    // Insert the element at the correct position
-    arr.insert(pos, element);
-}
-static void arr_remove_std(std::vector<int> &arr, int element)
-{
-    auto pos = std::lower_bound(arr.begin(), arr.end(), element);
-    if (pos != arr.end() && *pos == element)
-    {
-        arr.erase(arr.begin(), pos + 1);
-    }
+// this function is used for the recv_buffer and returns the highest in order seq number in the buffer + 1
+// set the output of this to next_expected
+static int arr_find_inorder_and_erase(std::vector<PacketInfo> &arr) {
+
 }
 
 // Data structure to determine whether 3 dup ACKs have been received or not
@@ -139,3 +131,19 @@ public:
 private:
     std::vector<int> arr = {-1, -1, -1};
 };
+
+// fprintf with time
+void better_fprintf(FILE* stream, const char* format, ...) {
+    // Get the current time
+    auto now = std::chrono::system_clock::now();
+    double time = std::chrono::duration<double>(now.time_since_epoch()).count();
+
+    // Print the time with 5 decimal places
+    fprintf(stream, "<%.5f> ", time);
+
+    // Handle variable arguments for the user's format
+    va_list args;
+    va_start(args, format);
+    vfprintf(stream, format, args);
+    va_end(args);
+}

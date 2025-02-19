@@ -118,7 +118,7 @@ int main(int argc, char **argv)
     packet ack_pkt;
     parse_packet(&ack_pkt, buffer, bytes_recvd);
     print_diag(&ack_pkt);
-    int expected = syn_pkt.seq + 2;
+    int expected = syn_pkt.seq + 1;
     if (ack_pkt.length != 0)
     {
         write(STDOUT_FILENO, ack_pkt.payload, ack_pkt.length);

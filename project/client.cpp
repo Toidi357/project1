@@ -106,7 +106,7 @@ int main(int argc, char **argv)
     if (syn_ack.length != 0)
         write(STDOUT_FILENO, syn_ack.payload, syn_ack.length);
 
-    // send ACK
+    // send ACK of 3-way
     bytes_sent = read(STDIN_FILENO, buffer, MAX_PAYLOAD); // workaround since packets of 3-way handshake can contain data
     int seq = 0;
     if (bytes_sent <= 0)
@@ -142,7 +142,7 @@ int main(int argc, char **argv)
         }
         else // otherwise it's an empty ACK
         {
-            listen_loop(sockfd, server_addr, p.ack, seq + 1, false);
+            listen_loop(sockfd, server_addr, p.ack, syn_ack.seq + 1, false);
         }
         
         
