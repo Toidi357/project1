@@ -16,8 +16,10 @@ std::chrono::steady_clock::time_point last_ack_time;
 const std::chrono::milliseconds timeout_duration(1000);
 
 // Function to retransmit the first packet in packets_inflight
-void retransmit_first_packet(int sockfd, struct sockaddr_in addr, std::vector<PacketInfo> &packets_inflight) {
-    if (!packets_inflight.empty()) {
+void retransmit_first_packet(int sockfd, struct sockaddr_in addr, std::vector<PacketInfo> &packets_inflight)
+{
+    if (!packets_inflight.empty())
+    {
         PacketInfo &first_packet = packets_inflight.front();
         sendto(sockfd, first_packet.packet_data, first_packet.packet_size, 0,
                (struct sockaddr *)&addr, sizeof(addr));
@@ -25,7 +27,6 @@ void retransmit_first_packet(int sockfd, struct sockaddr_in addr, std::vector<Pa
         better_fprintf(stderr, "Retransmitting packet with SEQ: %d\n", first_packet.seq);
     }
 }
-
 
 // Main function of transport layer; never quits
 int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expected, bool init_ack)
@@ -41,14 +42,14 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
     bool create_ack = init_ack;
 
     // used for flow control
-    int MAX_INFLIGHT = 1;              // initially set max to 1 MSS
+    int MAX_INFLIGHT = 20;                     // initially set max to 1 MSS
     std::vector<PacketInfo> packets_inflight; // contains the SEQ numbers of those in flight
     std::vector<PacketInfo> recv_buffer;      // contains SEQ numbers received not ACKed out yet
 
     // use in case of multiple retransmits
     std::unordered_set<int> received_packets;
     DupACKs dupacks;
-    
+
     // use for retransmits
     last_ack_time = std::chrono::steady_clock::now();
 
@@ -58,7 +59,8 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
     {
         // if 1 sec is up, retransmit first packet
         auto now = std::chrono::steady_clock::now();
-        if (now - last_ack_time > timeout_duration) {
+        if (now - last_ack_time > timeout_duration)
+        {
             retransmit_first_packet(sockfd, addr, packets_inflight);
 
             // Reset the timer
@@ -105,7 +107,6 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
                         better_fprintf(stderr, "3 DUP ACKs received, retransmitting first packet in buffer\n");
                         retransmit_first_packet(sockfd, addr, packets_inflight);
                     }
-                        
                 }
 
                 // If packet is just a raw ACK, no need to do anything as it has SEQ 0
@@ -116,7 +117,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
                 else
                 {
                     create_ack = true;
-                    
+
                     // if this packet we get is the next in order, we dont buffer and straight print
                     if (pkt.seq == next_expected)
                     {
@@ -134,9 +135,24 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
                         {
                             next_expected = pkt.seq + 1;
                         }
-                        else 
+                        else
                         {
-                            next_expected = arr_find_inorder_and_erase(recv_buffer);
+                            int highest_in_order_seq = arr_find_inorder(recv_buffer);
+
+                            // write out everything we can from recv_buffer before deleting them
+                            better_fprintf(stderr, "Writing out packets up to SEQ: %d\n", highest_in_order_seq);
+                            int i = 0;
+                            while (true)
+                            {
+                                PacketInfo pki = recv_buffer[i];
+                                write(STDOUT_FILENO, pki.packet_data + PACKET_HEADER_SIZE, pki.packet_size - PACKET_HEADER_SIZE);
+                                if (pki.seq == highest_in_order_seq)
+                                    break;
+                                i++;
+                            }
+                            arr_remove(recv_buffer, highest_in_order_seq);
+
+                            next_expected = highest_in_order_seq + 1;
                         }
                     }
                     else
@@ -148,9 +164,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
                         memcpy(pti.packet_data, buffer, bytes_recvd);
                         arr_insert(recv_buffer, pti);
                         better_fprintf(stderr, "Packet SEQ: %d buffered, expecting %d\n", pti.seq, next_expected);
-                    }                   
-                    // remove it from our unacked buffers
-                    //arr_remove_std(recv_buffer, pkt.seq);
+                    }
                 }
             }
         }
@@ -164,7 +178,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
             if (create_ack == false && bytes_read > 0) // case data and no need to ack
             {
                 int sent_bytes = create_and_send(sockfd, addr, buffer, current_seq, next_expected, MAX_INFLIGHT * MAX_PAYLOAD, false, bytes_read);
-                better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", current_seq, next_expected, sent_bytes);
+                better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", current_seq, next_expected, sent_bytes - PACKET_HEADER_SIZE);
 
                 PacketInfo pti;
                 pti.seq = current_seq;
@@ -178,7 +192,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
             {
                 // create and send
                 int sent_bytes = create_and_send(sockfd, addr, buffer, current_seq, next_expected, MAX_INFLIGHT * MAX_PAYLOAD, true, bytes_read);
-                better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", current_seq, next_expected, sent_bytes);
+                better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", current_seq, next_expected, sent_bytes - PACKET_HEADER_SIZE);
 
                 PacketInfo pti;
                 pti.seq = current_seq;
@@ -193,7 +207,7 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
             {
                 // create an ACK and send it out                   empty ACKs have SEQ 0
                 int sent_bytes = create_and_send(sockfd, addr, buffer, 0, next_expected, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
-                better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", 0, next_expected, sent_bytes);
+                better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", 0, next_expected, sent_bytes - PACKET_HEADER_SIZE);
 
                 create_ack = false;
             }
@@ -202,9 +216,9 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
         {
             // create an ACK and send it out                   empty ACKs have SEQ 0
             int sent_bytes = create_and_send(sockfd, addr, buffer, 0, next_expected, MAX_INFLIGHT * MAX_PAYLOAD, true, 0);
-            better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", 0, next_expected, sent_bytes);
+            better_fprintf(stderr, "Sent SEQ: %d ACK %d LEN: %d\n", 0, next_expected, sent_bytes - PACKET_HEADER_SIZE);
 
-            //next_expected++;
+            // next_expected++;
             create_ack = false;
         }
     }

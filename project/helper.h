@@ -2,6 +2,7 @@
 #include <vector>
 #include <cstring>
 #include <arpa/inet.h>
+#include "consts.h"
 #include <stdarg.h>
 #include <chrono>
 
@@ -87,14 +88,14 @@ int create_and_send(int sockfd, struct sockaddr_in addr, uint8_t *buffer, int se
 
 // These 2 functions help create the sending and receiving buffer
 // and sorted in order
-static void arr_insert(std::vector<PacketInfo> &arr, const PacketInfo &element) {
+void arr_insert(std::vector<PacketInfo> &arr, const PacketInfo &element) {
     auto pos = std::lower_bound(arr.begin(), arr.end(), element,
                                 [](const PacketInfo &a, const PacketInfo &b) {
                                     return a.seq < b.seq;
                                 });
     arr.insert(pos, element);
 }
-static void arr_remove(std::vector<PacketInfo> &arr, int seq) {
+void arr_remove(std::vector<PacketInfo> &arr, int seq) {
     auto pos = std::lower_bound(arr.begin(), arr.end(), seq,
                                 [](const PacketInfo &a, int seq) {
                                     return a.seq < seq;
@@ -104,10 +105,20 @@ static void arr_remove(std::vector<PacketInfo> &arr, int seq) {
     }
 }
 
-// this function is used for the recv_buffer and returns the highest in order seq number in the buffer + 1
-// set the output of this to next_expected
-static int arr_find_inorder_and_erase(std::vector<PacketInfo> &arr) {
+// this function is used for the recv_buffer and returns the highest in order seq number in the buffer
+int arr_find_inorder(std::vector<PacketInfo> &arr) {
+    int highest_in_order_index = 0;
+    int previous_seq = arr.front().seq;
+    for (size_t i = 1; i < arr.size(); i++) {
+        if (arr[i].seq != previous_seq + 1) {
+            highest_in_order_index = i - 1;
+            break;
+        }
+        previous_seq = arr[i].seq;
+        highest_in_order_index = i;
+    }
 
+    return arr[highest_in_order_index].seq;
 }
 
 // Data structure to determine whether 3 dup ACKs have been received or not
