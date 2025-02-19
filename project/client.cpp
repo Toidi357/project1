@@ -45,7 +45,7 @@ int create_ack_packet(uint8_t *buffer, int seq, int ack, int payload_size)
     pkt->seq = htons(ack);
     pkt->ack = htons(seq + 1);
     pkt->length = htons(payload_size);
-    pkt->win = htons(1012);
+    pkt->win = htons(1012); // constant set
     pkt->flags = ACK;
     pkt->unused = htons(0);
     memcpy(pkt->payload, buffer, payload_size);

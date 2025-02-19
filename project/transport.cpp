@@ -42,9 +42,10 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
     bool create_ack = init_ack;
 
     // used for flow control
-    int MAX_INFLIGHT = 20;                     // initially set max to 1 MSS
+    int MAX_INFLIGHT = 1;                     // initially set max to 1 MSS
     std::vector<PacketInfo> packets_inflight; // contains the SEQ numbers of those in flight
     std::vector<PacketInfo> recv_buffer;      // contains SEQ numbers received not ACKed out yet
+    int packets_since_increase = 0;
 
     // use in case of multiple retransmits
     std::unordered_set<int> received_packets;
@@ -76,6 +77,23 @@ int listen_loop(int sockfd, struct sockaddr_in addr, int init_seq, int next_expe
         if (bytes_recvd > 0 && parity_check(buffer, bytes_recvd) == true)
         {
             parse_packet(&pkt, buffer, bytes_recvd);
+
+            // integer floor division b/c f*ck weird window sizes
+            int win = (int)pkt.win / MAX_PAYLOAD;
+            if (win == MAX_INFLIGHT)
+            {
+                packets_since_increase++;
+                if (packets_since_increase == 3) // arbitrary set to deal with the weird reference binaries
+                {
+                    if (MAX_INFLIGHT != 40) // maximum window size that we arbitrarily set to
+                        MAX_INFLIGHT++;
+                    packets_since_increase = 0;
+                }
+            }
+            else {
+                packets_since_increase = 0;
+                MAX_INFLIGHT = win;
+            }
 
             if (received_packets.count(pkt.seq) != 0) // this seq has already been seen
             {
